@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro de Asistencia</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #121212; color: #e0e0e0; padding: 20px; max-width: 680px; margin: 0 auto; }
+  h1 { color: #bb86fc; margin-bottom: 20px; font-size: 24px; text-align: center; }
+  h2 { color: #bb86fc; margin: 20px 0 10px; font-size: 18px; }
+  .card { background: #1e1e1e; border: 1px solid #333; border-radius: 10px; padding: 16px; margin-bottom: 15px; }
+  label { display: block; margin: 10px 0 4px; font-size: 14px; color: #aaa; }
+  input { width: 100%; padding: 10px; border: 1px solid #444; border-radius: 6px; background: #2a2a2a; color: #fff; font-size: 15px; }
+  button { margin-top: 15px; padding: 12px; width: 100%; border: none; border-radius: 6px; background: #bb86fc; color: #121212; font-weight: bold; font-size: 15px; cursor: pointer; }
+  button:hover { background: #a06df0; }
+  .result { margin-top: 15px; padding: 12px; border-radius: 8px; background: #2a2a2a; }
+  .result p { margin: 5px 0; }
+  .status { font-weight: bold; }
+  .Asistencia { color: #4caf50; }
+  .Retardo { color: #ff9800; }
+  .Falta { color: #cf6679; }
+  .hidden { display: none; }
+  .error { color: #cf6679; }
+  .ok { color: #4caf50; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #333; padding: 8px; text-align: left; font-size: 14px; }
+  th { background: #2a2a2a; }
+  .aviso { background: #2a2a2a; border-left: 4px solid #bb86fc; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h1>📋 Registro de Asistencia</h1>
+
+<div class="aviso">
+  <b>Horarios:</b> Antes de las 10:00 → <span class="status Asistencia">Asistencia</span> ·
+  De 10:00 a 10:15 → <span class="status Retardo">Retardo</span> ·
+  Después de las 10:15 → <span class="status Falta">Falta</span>
+</div>
+
+<!-- Registro (maestro) -->
+<div class="card">
+  <h2>Registrar alumno (maestro)</h2>
+  <label>ID del alumno</label>
+  <input type="text" id="regId" placeholder="Ej: A001">
+  <label>Nombre del alumno</label>
+  <input type="text" id="regNombre" placeholder="Nombre completo">
+  <label>Contraseña</label>
+  <input type="password" id="regClave" placeholder="••••">
+  <button onclick="registrar()">Registrar asistencia</button>
+  <p id="mensajeRegistro" class="ok"></p>
+</div>
+
+<!-- Consulta (alumno) -->
+<div class="card">
+  <h2>Consultar mi hoja de registro</h2>
+  <label>Ingresa tu ID</label>
+  <input type="text" id="consultaId" placeholder="Ej: A001">
+  <button onclick="consultar()">Ver mi hoja</button>
+  <div id="resultado" class="result hidden"></div>
+</div>
+
+<script>
+const CLAVE = "1991";
+const URL_SCRIPT = "https://script.google.com/macros/s/AKfycbza-AOirEDNe8kmZ6jaZTBt9L7ufxlk2zlsy5CLGm2i685lu4-lxayN3jAk_-OTNEGEYw/exec";  // ← AQUÍ pegas tu URL de Google
+const HORA_ASISTENCIA = 10 * 60;
+const HORA_RETARDO_LIMITE = 10 * 60 + 15;
+
+function aMinutos(hora) {
+  const partes = hora.split(':');
+  return parseInt(partes[0]) * 60 + parseInt(partes[1]);
+}
+function calcularStatus(hora) {
+  const min = aMinutos(hora);
+  if (min < HORA_ASISTENCIA) return 'Asistencia';
+  if (min < HORA_RETARDO_LIMITE) return 'Retardo';
+  return 'Falta';
+}
+
+function registrar() {
+  const id = document.getElementById('regId').value.trim();
+  const nombre = document.getElementById('regNombre').value.trim();
+  const clave = document.getElementById('regClave').value;
+  const msg = document.getElementById('mensajeRegistro');
+
+  if (!id || !nombre || !clave) { msg.className='error'; msg.textContent='⚠️ Llena todos los campos.'; return; }
+  if (clave !== CLAVE) { msg.className='error'; msg.textContent='❌ Contraseña incorrecta.'; return; }
+
+  const hoy = new Date();
+  const fecha = hoy.toLocaleDateString('es-MX');
+  const hora = hoy.getHours().toString().padStart(2,'0') + ':' + hoy.getMinutes().toString().padStart(2,'0');
+  const status = calcularStatus(hora);
+
+  fetch(URL_SCRIPT + '?id=' + encodeURIComponent(id), { method: 'GET' })
+    .then(r => r.json())
+    .then(lista => {
+      const ya = lista.find(r => r.fecha === fecha);
+      if (ya) { msg.className='error'; msg.textContent='❌ El alumno ' + id + ' ya se registró hoy (' + ya.status + ').'; return; }
+
+      fetch(URL_SCRIPT, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({ id, nombre, fecha, hora, status })
+      }).then(() => {
+        msg.className='ok';
+        msg.textContent='✅ ' + nombre + ' registrado: ' + status + ' a las ' + hora;
+        document.getElementById('regId').value='';
+        document.getElementById('regNombre').value='';
+        document.getElementById('regClave').value='';
+      });
+    });
+}
+
+function consultar() {
+  const id = document.getElementById('consultaId').value.trim();
+  const res = document.getElementById('resultado');
+
+  fetch(URL_SCRIPT + '?id=' + encodeURIComponent(id), { method: 'GET' })
+    .then(r => r.json())
+    .then(lista => {
+      if (!lista || lista.length === 0) {
+        res.className='result error';
+        res.innerHTML='<p>❌ No se encontró el ID <b>' + id + '</b> o aún no tiene registros.</p>';
+        return;
+      }
+      const nombre = lista[0].nombre;
+      let html = '<p><b>Alumno:</b> ' + nombre + ' (ID: ' + id + ')</p><p><b>Historial completo:</b></p>';
+      html += '<table><tr><th>Fecha</th><th>Hora</th><th>Status</th></tr>';
+      lista.slice().reverse().forEach(r => {
+        html += '<tr><td>' + r.fecha + '</td><td>' + r.hora + '</td><td class="status ' + r.status + '">' + r.status + '</td></tr>';
+      });
+      html += '</table>';
+      res.className='result';
+      res.innerHTML=html;
+    });
+}
+</script>
+</body>
+</html>
